@@ -1,0 +1,2192 @@
+
+<!-- saved from url=(0067)http://www.teske.net.br/lucas/palestras/h2hc2016/satellite/#/step-1 -->
+<html style="height: 100%;"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><script async="" src="./Satellite Communications Reverse Engineering_files/analytics.js.download"></script><script async="" src="./Satellite Communications Reverse Engineering_files/analytics.js(1).download"></script><script>(function main() {
+    // Create enabled event
+    function fireEnabledEvent() {
+        // If gli exists, then we are already present and shouldn't do anything
+        if (!window.gli) {
+            setTimeout(function () {
+                var enabledEvent = document.createEvent("Event");
+                enabledEvent.initEvent("WebGLEnabledEvent", true, true);
+                document.dispatchEvent(enabledEvent);
+            }, 0);
+        } else {
+            //console.log("WebGL Inspector already embedded on the page - disabling extension");
+        }
+    };
+
+    // Grab the path root from the extension
+    document.addEventListener("WebGLInspectorReadyEvent", function (e) {
+        var pathElement = document.getElementById("__webglpathroot");
+        if (window["gliloader"]) {
+            gliloader.pathRoot = pathElement.innerText;
+        } else {
+            // TODO: more?
+            window.gliCssUrl = pathElement.innerText + "gli.all.css";
+        }
+    }, false);
+
+    // Rewrite getContext to snoop for webgl
+    var originalGetContext = HTMLCanvasElement.prototype.getContext;
+    if (!HTMLCanvasElement.prototype.getContextRaw) {
+        HTMLCanvasElement.prototype.getContextRaw = originalGetContext;
+    }
+    HTMLCanvasElement.prototype.getContext = function () {
+        var ignoreCanvas = this.internalInspectorSurface;
+        if (ignoreCanvas) {
+            return originalGetContext.apply(this, arguments);
+        }
+
+        var result = originalGetContext.apply(this, arguments);
+        if (result == null) {
+            return null;
+        }
+
+        var contextNames = ["moz-webgl", "webkit-3d", "experimental-webgl", "webgl", "3d"];
+        var requestingWebGL = contextNames.indexOf(arguments[0]) != -1;
+        if (requestingWebGL) {
+            // Page is requesting a WebGL context!
+            fireEnabledEvent(this);
+
+            // If we are injected, inspect this context
+            if (window.gli) {
+                if (gli.host.inspectContext) {
+                    // TODO: pull options from extension
+                    result = gli.host.inspectContext(this, result);
+                    // NOTE: execute in a timeout so that if the dom is not yet
+                    // loaded this won't error out.
+                    window.setTimeout(function() {
+                        var hostUI = new gli.host.HostUI(result);
+                        result.hostUI = hostUI; // just so we can access it later for debugging
+                    }, 0);
+                }
+            }
+        }
+
+        return result;
+    };
+})();</script>
+
+<meta name="viewport" content="width=device-width, minimum-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Satellite Communications Reverse Engineering</title>
+
+<meta name="description" content="Presentation given on H2HC 2016 about reverse engineering satellite communications.">
+<meta name="author" content="Lucas Teske">
+<meta name="og:image" content="http://www.teske.net.br/lucas/palestras/h2hc2016/satellite/Satellite%20Comns_files/bJhQOie.png">
+<meta property="og:image" content="http://www.teske.net.br/lucas/palestras/h2hc2016/satellite/Satellite%20Comns_files/bJhQOie.png">
+<meta property="og:title" content="Satellite Communications Reverse Engineering">
+<meta property="og:type" content="website">
+<meta property="og:description" content="Presentation given on H2HC 2016 about reverse engineering satellite communications.">
+<style>
+.componentContainer {
+    position: absolute;
+    line-height: normal;
+    /*-webkit-transform-origin: 135% 135%;
+    -moz-transform-origin: 135% 135%;
+    transform-origin: 135% 135%;*/
+}
+
+.transformContainer {
+    -webkit-transform-origin: 0 0;
+    -moz-transform-origin: 0 0;
+    transform-origin: 0 0;
+}
+
+.bg {
+    width: 100%;
+    height: 100%;
+}
+</style>
+
+<link rel="stylesheet" href="./Satellite Communications Reverse Engineering_files/default-reset.css">
+<link href="./Satellite Communications Reverse Engineering_files/main.css" rel="stylesheet" type="text/css">
+<link rel="stylesheet" href="./Satellite Communications Reverse Engineering_files/default.css" id="theme">
+<link href="./Satellite Communications Reverse Engineering_files/web-fonts.css" rel="stylesheet" type="text/css">
+<link href="./Satellite Communications Reverse Engineering_files/backgroundClasses.css" rel="stylesheet" type="text/css">
+<link href="./Satellite Communications Reverse Engineering_files/surfaceClasses.css" rel="stylesheet" type="text/css">
+
+<link rel="shortcut icon" href="http://strut.io/editor/preview_export/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="http://strut.io/editor/preview_export/apple-touch-icon.png" type="image/png">
+
+<style>
+.reveal.themedArea {
+    display: block;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+}
+</style>
+
+<script type="text/javascript" src="./Satellite Communications Reverse Engineering_files/dataset-shim.js.download"></script>
+<script type="text/javascript" src="./Satellite Communications Reverse Engineering_files/impress.js.download"></script>
+
+<script src="./Satellite Communications Reverse Engineering_files/onready.js.download"></script>
+<script src="./Satellite Communications Reverse Engineering_files/loadPresentation.js.download"></script>
+<script>
+ready(function() {
+    if (document.getElementById('launched-placeholder'))
+        loadPresentation();
+
+    if (!window.presStarted) {
+        startPres(document, window);
+        impress().init();   
+    }
+
+    if ("ontouchstart" in document.documentElement) { 
+        document.querySelector(".hint").innerHTML = 
+            "<p>Tap on the left or right to navigate</p>";
+    }
+});
+</script>
+<script>
+    (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+    ga('create', 'UA-42322531-1', 'strut.io');
+    ga('send', 'pageview');
+    </script>
+</head>
+<body class="impress-supported impress-enabled" style="height: 100%; overflow: hidden;">
+<style type="text/css">
+
+</style>
+<style>
+
+</style>
+<style>
+
+
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+	
+		
+		
+	
+
+</style>
+<!-- This is a work around / hack to get the user's browser to download the fonts 
+ if they decide to save the presentation. -->
+<div style="visibility: hidden; width: 0px; height: 0px">
+<img src="./Satellite Communications Reverse Engineering_files/Lato-Bold.woff">
+<img src="./Satellite Communications Reverse Engineering_files/HammersmithOne.woff">
+<img src="./Satellite Communications Reverse Engineering_files/Droid-Sans-Mono.woff">
+<img src="./Satellite Communications Reverse Engineering_files/Gorditas-Regular.woff">
+<img src="./Satellite Communications Reverse Engineering_files/FredokaOne-Regular.woff">
+<img src="./Satellite Communications Reverse Engineering_files/Ubuntu.woff">
+<img src="./Satellite Communications Reverse Engineering_files/Ubuntu-Bold.woff">
+<img src="./Satellite Communications Reverse Engineering_files/PressStart2P-Regular.woff">
+<img src="./Satellite Communications Reverse Engineering_files/Lato-BoldItalic.woff">
+<img src="./Satellite Communications Reverse Engineering_files/AbrilFatface-Regular.woff">
+<img src="./Satellite Communications Reverse Engineering_files/Lato-Regular.woff">
+</div>
+
+<div class="fallback-message">
+    <p>Your browser <b>doesn't support the features required</b> by impress.js, so you are presented with a simplified version of this presentation.</p>
+    <p>For the best experience please use the latest <b>Chrome</b>, <b>Safari</b> or <b>Firefox</b> browser.</p>
+</div>
+
+<div class="bg bg-surf-grad-black strut-surface">
+<div class="bg innerBg strut-slide-0 bg-surf-grad-black">
+<div id="impress" style="position: absolute; transform-origin: left top 0px; transition: all 500ms ease-in-out 250ms; transform-style: preserve-3d; top: 50%; left: 50%; transform: perspective(3000px) scale(0.333333);"><div style="position: absolute; transform-origin: left top 0px; transition: all 500ms ease-in-out 0ms; transform-style: preserve-3d; transform: rotateZ(0deg) rotateY(0deg) rotateX(0deg) translate3d(-2457.6px, -2764.8px, 0px);">
+	
+		
+			<div class="step present active" data-state="strut-slide-0 bg-surf-grad-black " data-x="2457.6" data-y="2764.8" data-scale="3" id="step-1" style="position: absolute; transform: translate(-50%, -50%) translate3d(2457.6px, 2764.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-0" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 340px; left: 311px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<div style="text-align: center;"><font color="#eeeeee">Satellite Communications</font></div><div style="text-align: center;"><font color="#eeeeee">Reverse Enginering</font></div>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-1 bg-surf-grad-black " data-x="6253.2266666666665" data-y="3333.12" data-rotate-y="37.81521447863434" data-rotate-z="21.772396214971284" data-scale="3" id="step-2" style="position: absolute; transform: translate(-50%, -50%) translate3d(6253.23px, 3333.12px, 0px) rotateX(0deg) rotateY(37.8152deg) rotateZ(21.7724deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-1" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 48px; left: 417px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<div style="text-align: center;"><font color="#eeeeee">Motivations</font></div>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 312px; left: 51px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<font color="#eeeeee">- The whole process from the hardware to &nbsp;the software works for most telecom systems.<br>- The space telecommunications has a common base specification<br>- There are not much stuff on the internet about Digital Signal Processing<br>- There are cheap SDRs in the market now (RTLSDR, Airspy, HackRF)<br>- The images from weather satellites show the beauty of our planet!</font><br>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-2 bg-surf-grad-black " data-x="10103.466666666667" data-y="2764.8" data-scale="3" id="step-3" style="position: absolute; transform: translate(-50%, -50%) translate3d(10103.5px, 2764.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-2" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 356px; left: 326px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 48px;" class="antialias">
+<font color="#eeeeee">How a SDR works</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-3 bg-surf-grad-black " data-x="6280.533333333334" data-y="6942.72" data-rotate-y="87.08958485988514" data-rotate-z="64.1712730546522" data-scale="3" id="step-4" style="position: absolute; transform: translate(-50%, -50%) translate3d(6280.53px, 6942.72px, 0px) rotateX(0deg) rotateY(87.0896deg) rotateZ(64.1713deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-3" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 68px; left: 75px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 874.56px; height: 629.86px;">
+<div class="transformContainer" style="-webkit-transform: scale(, );
+-moz-transform: scale(, );
+transform: scale(, )">
+<svg fill="#eeeeee" height="629.8585110268937" width="874.5569551618647" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 50 50" preserveAspectRatio="none"><rect width="50" height="50"></rect></svg>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 93px; left: 151px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/NjyclRg.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-4 bg-surf-grad-black " data-x="7645.866666666667" data-y="10629.12" data-rotate-y="111.1538122553797" data-rotate-z="89.95437383553926" data-scale="3" id="step-5" style="position: absolute; transform: translate(-50%, -50%) translate3d(7645.87px, 10629.1px, 0px) rotateX(0deg) rotateY(111.154deg) rotateZ(89.9544deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-4" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 362px; left: 350px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Open SDR Platforms</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-5 bg-surf-grad-black " data-x="9106.773333333333" data-y="6758.4" data-rotate-y="127.19663051904277" data-rotate-z="144.95832216809828" data-scale="3" id="step-6" style="position: absolute; transform: translate(-50%, -50%) translate3d(9106.77px, 6758.4px, 0px) rotateX(0deg) rotateY(127.197deg) rotateZ(144.958deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-5" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 86px; left: 216px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 593px; height: 422.74px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.58, 0.58);
+-moz-transform: scale(0.58, 0.58);
+transform: scale(0.58, 0.58)">
+<img src="./Satellite Communications Reverse Engineering_files/R820T_sdr_1.jpg">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 20px; left: 447px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">RTLSDR</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 536px; left: 312px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- 24 - 1768 Mhz Receptor<br>- 8 Bits ADC<br>- 3.2 MSPS IQ<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-6 bg-surf-grad-black " data-x="10949.973333333333" data-y="2150.4" data-rotate-y="142.09353319244414" data-rotate-z="170.7414229489853" data-scale="3" id="step-7" style="position: absolute; transform: translate(-50%, -50%) translate3d(10950px, 2150.4px, 0px) rotateX(0deg) rotateY(142.094deg) rotateZ(170.741deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-6" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 33px; left: 450px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">HackRF</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 98px; left: 220px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 585px; height: 368.09px;">
+<div class="transformContainer" style="-webkit-transform: scale(1.31, 1.31);
+-moz-transform: scale(1.31, 1.31);
+transform: scale(1.31, 1.31)">
+<img src="./Satellite Communications Reverse Engineering_files/h1-preliminary1-445.jpeg">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 523px; left: 173px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- Half-duplex Transceiver ( 1 MHz to 6GHz )<br>- 8 Bits ADC / 10 bits DAC<br>- 20 MSPS IQ<br>- Open Hardware<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-7 bg-surf-grad-black " data-x="29218.133333333335" data-y="7065.6" data-scale="3" id="step-8" style="position: absolute; transform: translate(-50%, -50%) translate3d(29218.1px, 7065.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-7" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 27px; left: 444px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 48px;" class="antialias">
+<font color="#eeeeee">Airspy<br></font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 255px; left: 64px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 326px; height: 258.58px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.92, 0.92);
+-moz-transform: scale(0.92, 0.92);
+transform: scale(0.92, 0.92)">
+<img src="./Satellite Communications Reverse Engineering_files/airspy_board_right.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 246px; left: 648px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 348px; height: 276.03px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.99, 0.99);
+-moz-transform: scale(0.99, 0.99);
+transform: scale(0.99, 0.99)">
+<img src="./Satellite Communications Reverse Engineering_files/airspy_mini_right.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 557px; left: 312px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- 24 - 1768 Mhz Receptor<br>- 12 Bits ADC<br>- 10 MSPS IQ<br>- Open Source Firmware<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-8 bg-surf-grad-black " data-x="33041.066666666666" data-y="7065.6" data-scale="3" id="step-9" style="position: absolute; transform: translate(-50%, -50%) translate3d(33041.1px, 7065.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-8" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 356px; left: 222px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 48px;" class="antialias">
+<font color="#eeeeee">My First Satellite Reception</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-9 bg-surf-grad-black " data-x="13339.306666666667" data-y="5744.64" data-rotate-y="155.84452027558393" data-rotate-z="180.48170546620932" data-scale="3" id="step-10" style="position: absolute; transform: translate(-50%, -50%) translate3d(13339.3px, 5744.64px, 0px) rotateX(0deg) rotateY(155.845deg) rotateZ(180.482deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-9" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 27px; left: 362px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<div style="text-align: center;"><span style="color: rgb(238, 238, 238);">APT Demodulation</span></div>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 129px; left: 2px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 1020px; height: 599.25px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.49, 0.49);
+-moz-transform: scale(0.49, 0.49);
+transform: scale(0.49, 0.49)">
+<img src="./Satellite Communications Reverse Engineering_files/FoPZtUE.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 727px; left: 319px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">4 February, 2016 - 20:43</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-10 bg-surf-grad-black " data-x="17503.573333333334" data-y="3578.88" data-rotate-y="210.27551081301215" data-rotate-z="229.7560758474601" data-scale="3" id="step-11" style="position: absolute; transform: translate(-50%, -50%) translate3d(17503.6px, 3578.88px, 0px) rotateX(0deg) rotateY(210.276deg) rotateZ(229.756deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-10" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 35px; left: 196px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 633px; height: 697.76px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.7, 0.7);
+-moz-transform: scale(0.7, 0.7);
+transform: scale(0.7, 0.7)">
+<img src="./Satellite Communications Reverse Engineering_files/bFUFViw.jpg">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-11 bg-surf-grad-black " data-x="21244.586666666666" data-y="2549.76" data-rotate-y="225.17241348641352" data-rotate-z="240.06931615981495" data-scale="3" id="step-12" style="position: absolute; transform: translate(-50%, -50%) translate3d(21244.6px, 2549.76px, 0px) rotateX(0deg) rotateY(225.172deg) rotateZ(240.069deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-11" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 151px; left: 319px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">The GOES Satellite Hunt</font><br>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 221px; left: 359px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 306px; height: 460.2px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.6, 0.6);
+-moz-transform: scale(0.6, 0.6);
+transform: scale(0.6, 0.6)">
+<img src="./Satellite Communications Reverse Engineering_files/510px-GOES-N_spacecraft_is_lowered_onto_the_payload_adapter.jpg">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-12 bg-surf-grad-black " data-x="48332.8" data-y="11366.4" data-scale="3" id="step-13" style="position: absolute; transform: translate(-50%, -50%) translate3d(48332.8px, 11366.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-12" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 86px; left: 29px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 335px; height: 595.56px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.11, 0.11);
+-moz-transform: scale(0.11, 0.11);
+transform: scale(0.11, 0.11)">
+<img src="./Satellite Communications Reverse Engineering_files/qvTO5qz.jpg">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 19px; left: 300px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">The Hardware for Receiver</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 89px; left: 389px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- 1.9 m Parabolic Dish (Prime Focus)<br>- RG-59 High Quality Coax Cable (50Ω)<br>- Two LNA<br>- Lorch Bandpass Filter<br>- Few days of work (maybe)<br>- Airspy R2<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-13 bg-surf-grad-black " data-x="52155.73333333333" data-y="11366.4" data-scale="3" id="step-14" style="position: absolute; transform: translate(-50%, -50%) translate3d(52155.7px, 11366.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-13" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 193px; left: 173px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 679px; height: 381.94px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.13, 0.13);
+-moz-transform: scale(0.13, 0.13);
+transform: scale(0.13, 0.13)">
+<img src="./Satellite Communications Reverse Engineering_files/NTy3vKw.jpg">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 62px; left: 275px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Wave Guide Feed (Canantena)</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 669px; left: 226px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Remember the "old" wardrive times?</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-14 bg-surf-grad-black " data-x="55978.666666666664" data-y="11366.4" data-scale="3" id="step-15" style="position: absolute; transform: translate(-50%, -50%) translate3d(55978.7px, 11366.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-14" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 169px; left: 130px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 764px; height: 429.7px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.16, 0.16);
+-moz-transform: scale(0.16, 0.16);
+transform: scale(0.16, 0.16)">
+<img src="./Satellite Communications Reverse Engineering_files/Vjg7mH8.jpg">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 33px; left: 354px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Low Noise Amplifier<br><div style="text-align: center;">(LNA4ALL)</div></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-15 bg-surf-grad-black " data-x="59801.6" data-y="11366.4" data-scale="3" id="step-16" style="position: absolute; transform: translate(-50%, -50%) translate3d(59801.6px, 11366.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-15" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 101px; left: 124px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 767px; height: 431.44px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.75, 0.75);
+-moz-transform: scale(0.75, 0.75);
+transform: scale(0.75, 0.75)">
+<img src="./Satellite Communications Reverse Engineering_files/8XeTynJh.jpg">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 16px; left: 342px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Lorch Bandpass Filter</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 569px; left: 273px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- 1675 MHz Center Frequency<br>- 150 MHz Bandwidth<br>- Low Insertion Loss<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-16 bg-surf-grad-black " data-x="63624.53333333333" data-y="11366.4" data-scale="3" id="step-17" style="position: absolute; transform: translate(-50%, -50%) translate3d(63624.5px, 11366.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-16" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: -10px; left: 291px; -webkit-transform: rotate(-1.58rad)  ; -moz-transform: rotate(-1.58rad)  ; transform: rotate(-1.58rad)  ; width: 443px; height: 787.56px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.77, 0.77);
+-moz-transform: scale(0.77, 0.77);
+transform: scale(0.77, 0.77)">
+<img src="./Satellite Communications Reverse Engineering_files/1vsq3R9h.jpg">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 63px; left: 272px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">One LNA4ALL and Lorch Filter</font><br>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-17 bg-surf-grad-black " data-x="67447.46666666666" data-y="11366.4" data-scale="3" id="step-18" style="position: absolute; transform: translate(-50%, -50%) translate3d(67447.5px, 11366.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-17" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 204px; left: 192px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/GVoOOu4l.jpg">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-18 bg-surf-grad-black " data-x="71270.4" data-y="15667.2" data-scale="3" id="step-19" style="position: absolute; transform: translate(-50%, -50%) translate3d(71270.4px, 15667.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-18" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 362px; left: 344px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">The Actual Reception</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-19 bg-surf-grad-black " data-x="75093.33333333333" data-y="15667.2" data-scale="3" id="step-20" style="position: absolute; transform: translate(-50%, -50%) translate3d(75093.3px, 15667.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-19" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 82px; left: 51px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 922px; height: 605.22px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.63, 0.63);
+-moz-transform: scale(0.63, 0.63);
+transform: scale(0.63, 0.63)">
+<img src="./Satellite Communications Reverse Engineering_files/zKq7Dkv.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 13px; left: 238px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">GQRX showing GOES 13 Spectrum</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-20 bg-surf-grad-black " data-x="78916.26666666666" data-y="15667.2" data-scale="3" id="step-21" style="position: absolute; transform: translate(-50%, -50%) translate3d(78916.3px, 15667.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-20" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 129px; left: 124px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 778px; height: 509.8px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.76, 0.76);
+-moz-transform: scale(0.76, 0.76);
+transform: scale(0.76, 0.76)">
+<img src="./Satellite Communications Reverse Engineering_files/k64epslh.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 34px; left: 349px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">GOES 13 LRIT Signal</font><br>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-21 bg-surf-grad-black " data-x="82739.2" data-y="15667.2" data-scale="3" id="step-22" style="position: absolute; transform: translate(-50%, -50%) translate3d(82739.2px, 15667.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-21" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 30px; left: 311px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 48px;" class="antialias">
+<font color="#eeeeee">Transmission Specs</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 128px; left: 87px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/lx7lioZ.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-22 bg-surf-grad-black " data-x="86562.13333333333" data-y="15667.2" data-scale="3" id="step-23" style="position: absolute; transform: translate(-50%, -50%) translate3d(86562.1px, 15667.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-22" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 362px; left: 460px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">BPSK?</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-23 bg-surf-grad-black " data-x="90385.06666666667" data-y="15667.2" data-scale="3" id="step-24" style="position: absolute; transform: translate(-50%, -50%) translate3d(90385.1px, 15667.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-23" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 36px; left: 311px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Binary Phase Shift Keying<br></font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 84px; left: 175px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/WDontOL.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-24 bg-surf-grad-black " data-x="94208" data-y="19968" data-scale="3" id="step-25" style="position: absolute; transform: translate(-50%, -50%) translate3d(94208px, 19968px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-24" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 39px; left: 403px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Constelations</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 181px; left: 300px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/3IADL7c.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-25 bg-surf-grad-black " data-x="98030.93333333333" data-y="19968" data-scale="3" id="step-26" style="position: absolute; transform: translate(-50%, -50%) translate3d(98030.9px, 19968px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-25" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 30px; left: 266px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Signal Carrier / Phase Recovery</font><br>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 209px; left: 154px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 716.32px; height: 351.04px;">
+<div class="transformContainer" style="-webkit-transform: scale(, );
+-moz-transform: scale(, );
+transform: scale(, )">
+<svg fill="#eeeeee" height="351.0372347687093" width="716.3216766622082" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 50 50" preserveAspectRatio="none"><rect width="50" height="50"></rect></svg>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 220px; left: 192px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/E0iTMwj.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-26 bg-surf-grad-black " data-x="101853.86666666667" data-y="19968" data-scale="3" id="step-27" style="position: absolute; transform: translate(-50%, -50%) translate3d(101854px, 19968px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-26" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 80px; left: 11px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 1002px; height: 608.27px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.79, 0.79);
+-moz-transform: scale(0.79, 0.79);
+transform: scale(0.79, 0.79)">
+<img src="./Satellite Communications Reverse Engineering_files/Sr21Hle.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 16px; left: 272px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">GNU Radio Demodulator Flow</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-27 bg-surf-grad-black " data-x="105676.8" data-y="19968" data-scale="3" id="step-28" style="position: absolute; transform: translate(-50%, -50%) translate3d(105677px, 19968px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-27" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 109px; left: 306px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 412px; height: 550.72px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.52, 0.52);
+-moz-transform: scale(0.52, 0.52);
+transform: scale(0.52, 0.52)">
+<img src="./Satellite Communications Reverse Engineering_files/HRSnZS8.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 33px; left: 286px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">BPSK Receiver Constellation</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-28 bg-surf-grad-black " data-x="109499.73333333334" data-y="19968" data-scale="3" id="step-29" style="position: absolute; transform: translate(-50%, -50%) translate3d(109500px, 19968px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-28" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 362px; left: 291px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Decoding demodulated data</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-29 bg-surf-grad-black " data-x="113322.66666666667" data-y="19968" data-scale="3" id="step-30" style="position: absolute; transform: translate(-50%, -50%) translate3d(113323px, 19968px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-29" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 340px; left: 315px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Finding the Frame Period<br><div style="text-align: center;">using Bit Analysis</div></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-30 bg-surf-grad-black " data-x="117145.6" data-y="24268.8" data-scale="3" id="step-31" style="position: absolute; transform: translate(-50%, -50%) translate3d(117146px, 24268.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-30" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 96px; left: 155px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 714px; height: 577.34px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.7, 0.7);
+-moz-transform: scale(0.7, 0.7);
+transform: scale(0.7, 0.7)">
+<img src="./Satellite Communications Reverse Engineering_files/1SlBjCl.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 27px; left: 369px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Wrong Frame Size</font><br>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-31 bg-surf-grad-black " data-x="120968.53333333334" data-y="24268.8" data-scale="3" id="step-32" style="position: absolute; transform: translate(-50%, -50%) translate3d(120969px, 24268.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-31" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 173px; left: 39px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 946px; height: 422.26px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.51, 0.51);
+-moz-transform: scale(0.51, 0.51);
+transform: scale(0.51, 0.51)">
+<img src="./Satellite Communications Reverse Engineering_files/q6SyQnH.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 20px; left: 263px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Correct Frame Size (16384 bits)</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-32 bg-surf-grad-black " data-x="124791.46666666666" data-y="24268.8" data-scale="3" id="step-33" style="position: absolute; transform: translate(-50%, -50%) translate3d(124791px, 24268.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-32" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 28px; left: 336px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Finding the sync signal</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 88px; left: 99px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 833px; height: 179.62px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.45, 0.45);
+-moz-transform: scale(0.45, 0.45);
+transform: scale(0.45, 0.45)">
+<img src="./Satellite Communications Reverse Engineering_files/qqk3UwA.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 282px; left: 97px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 834px; height: 179.84px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.45, 0.45);
+-moz-transform: scale(0.45, 0.45);
+transform: scale(0.45, 0.45)">
+<img src="./Satellite Communications Reverse Engineering_files/R4eIZIO.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 435px; left: 321px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 301px; height: 308.72px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.48, 0.48);
+-moz-transform: scale(0.48, 0.48);
+transform: scale(0.48, 0.48)">
+<img src="./Satellite Communications Reverse Engineering_files/5PM2zPx.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 98px; left: 734px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<b><font color="#eeeeee">Blank Frames</font></b>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 136px; left: 734px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<b><font color="#eeeeee">Blank Frames</font></b>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 175px; left: 734px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<b><font color="#eeeeee">Blank Frames</font></b>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 221px; left: 734px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<b><font color="#eeeeee">Data<br></font></b>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 582px; left: 143px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<b><font color="#eeeeee">Sync Signal</font></b>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-33 bg-surf-grad-black " data-x="128614.4" data-y="24268.8" data-scale="3" id="step-34" style="position: absolute; transform: translate(-50%, -50%) translate3d(128614px, 24268.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-33" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 186px; left: 52px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- Usually wireless systems use convolution coded outputs<br>- Convolution Coded generates parity. The transmitter sends<br>&nbsp; &nbsp;only parity data.<br>- The reverse algorithm to convolution code is Viterbi<br>- There are few standard parameters for viterbi<br>- GOES satellites use k=7 , G1 = 0x4F, G2 = 0x6D<br>- GOES uses Standard CCSDS Sync Word ( 0x1ACFFC1D )<br>- Easiest way to sync frames: Generate a Encoded Sync Word<br>&nbsp; &nbsp;and search for correlation<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-34 bg-surf-grad-black " data-x="132437.33333333334" data-y="24268.8" data-scale="3" id="step-35" style="position: absolute; transform: translate(-50%, -50%) translate3d(132437px, 24268.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-34" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 29px; left: 325px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Convolutional Encoding<br></font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 219px; left: 342px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/Convolutional_encoder_non-recursive.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 235px; left: 354px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#000000">k=3</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 96px; left: 696px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">G1 = 111b'<br>G2 = 101b'<br>G3 = 011b'</font><br>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 562px; left: 150px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">n1 = ( m2 * g1[0] + m0 * g1[1] + m0 * g1[2] ) % 2<br>n2 = ( m2 * g2[0] + m0 * g2[1] + m0 * g2[2] ) % 2<br>n3 = ( m2 * g3[0] + m0 * g3[1] + m0 * g3[2] ) % 2</font><br>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-35 bg-surf-grad-black " data-x="136260.26666666666" data-y="24268.8" data-scale="3" id="step-36" style="position: absolute; transform: translate(-50%, -50%) translate3d(136260px, 24268.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-35" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 20px; left: 208px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Trellis Diagram for Convolutional Code</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 271px; left: 428px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">0b'</font><br>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 272px; left: 292px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">1b'</font><br>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 270px; left: 544px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">1b'</font><br>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 269px; left: 673px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">0b'</font><br>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer" style="top: 82px; left: 237px; width: 551px; height: 178px;">
+<div class="transformContainer" style="-webkit-transform: scale(, );
+-moz-transform: scale(, );
+transform: scale(, )">
+<img src="./Satellite Communications Reverse Engineering_files/Convolutional_code_trellis_diagram.svg" style="width: 100%; height: 100%">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 353px; left: 267px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/RHI1dZZ.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-36 bg-surf-grad-black " data-x="140083.2" data-y="28569.6" data-scale="3" id="step-37" style="position: absolute; transform: translate(-50%, -50%) translate3d(140083px, 28569.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-36" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 25px; left: 315px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Syncing using correlation</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 87px; left: 113px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 798px; height: 655.93px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.71, 0.71);
+-moz-transform: scale(0.71, 0.71);
+transform: scale(0.71, 0.71)">
+<img src="./Satellite Communications Reverse Engineering_files/bJhQOie.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-37 bg-surf-grad-black " data-x="143906.13333333333" data-y="28569.6" data-scale="3" id="step-38" style="position: absolute; transform: translate(-50%, -50%) translate3d(143906px, 28569.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-37" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 259px; left: 269px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 486px; height: 329.07px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.69, 0.69);
+-moz-transform: scale(0.69, 0.69);
+transform: scale(0.69, 0.69)">
+<img src="./Satellite Communications Reverse Engineering_files/uYH7lQ1.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 618px; left: 165px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 694px; height: 75.69px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.85, 0.85);
+-moz-transform: scale(0.85, 0.85);
+transform: scale(0.85, 0.85)">
+<img src="./Satellite Communications Reverse Engineering_files/F1roTvf.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 25px; left: 315px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Syncing using correlation</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-38 bg-surf-grad-black " data-x="147729.06666666668" data-y="28569.6" data-scale="3" id="step-39" style="position: absolute; transform: translate(-50%, -50%) translate3d(147729px, 28569.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-38" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 341px; left: 290px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<div style="text-align: center;"><span style="color: rgb(238, 238, 238);">Wait, what? Hard Correlate?</span></div><font color="#eeeeee"><div style="text-align: center;">WTF?</div></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-39 bg-surf-grad-black " data-x="151552" data-y="28569.6" data-scale="3" id="step-40" style="position: absolute; transform: translate(-50%, -50%) translate3d(151552px, 28569.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-39" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 28px; left: 286px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Soft and Hard Bits / Mapping</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 110px; left: 192px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<img src="./Satellite Communications Reverse Engineering_files/kPbrhhT.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 588px; left: 48px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<div style="text-align: center;"><span style="color: rgb(238, 238, 238);">Soft Bits</span></div><font color="#eeeeee"><div style="text-align: center;">binary 0 can be anything from -127 to 0</div><div style="text-align: center;">binary 1 can be anything from 0 to 127</div></font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 585px; left: 725px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<div style="text-align: center;"><span style="color: rgb(238, 238, 238);">Hard Bits</span></div><font color="#eeeeee"><div style="text-align: center;">binary 0 is -127</div><div style="text-align: center;">binary 1 is 127</div></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-40 bg-surf-grad-black " data-x="155374.93333333332" data-y="28569.6" data-scale="3" id="step-41" style="position: absolute; transform: translate(-50%, -50%) translate3d(155375px, 28569.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-40" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 29px; left: 323px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 48px;" class="antialias">
+<font color="#eeeeee">Why use soft bits?</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 208px; left: 80px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- Soft bits represents a probabilistic bit<br>- Noises in phase can cause the point in&nbsp;constellation&nbsp;to&nbsp;<br>&nbsp; move towards one of the sides.<br>- Viterbi uses distance from the Origin to the point to&nbsp;<br>&nbsp; &nbsp;identify the probably position of the point in Trellis&nbsp;<br>&nbsp; &nbsp;Diagram<br>- You get about 2dB higher SNR by using Soft Bits in&nbsp;<br>&nbsp; &nbsp;Viterbi<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-41 bg-surf-grad-black " data-x="159197.86666666667" data-y="28569.6" data-scale="3" id="step-42" style="position: absolute; transform: translate(-50%, -50%) translate3d(159198px, 28569.6px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-41" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 21px; left: 264px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Statistics over Viterbi Decoding</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 252px; left: 46px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- Decode bitstream using Viterbi<br>- Convolution Encode the output<br>- Compare with the original bitstream<br><br>- Average bit corrections on 6dB LRIT Signal: 100 / 8192 bits<br>- Sync Correlation: 56 / 64 bits<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-42 bg-surf-grad-black " data-x="163020.8" data-y="32870.4" data-scale="3" id="step-43" style="position: absolute; transform: translate(-50%, -50%) translate3d(163021px, 32870.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-42" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 83px; left: 56px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 912px; height: 638.13px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.67, 0.67);
+-moz-transform: scale(0.67, 0.67);
+transform: scale(0.67, 0.67)">
+<img src="./Satellite Communications Reverse Engineering_files/IUd3ItL.png">
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 10px; left: 396px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Viterbi Output</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-43 bg-surf-grad-black " data-x="166843.73333333334" data-y="32870.4" data-scale="3" id="step-44" style="position: absolute; transform: translate(-50%, -50%) translate3d(166844px, 32870.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-43" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 35px; left: 351px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Data Randomization</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 111px; left: 67px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- Usually wireless transmissions randomize the data send<br>- First Reason: Avoid sync word&nbsp;collision<br>- Second Reason: Avoid Line Polarization and Symbol<br>&nbsp; &nbsp;Unbalance<br>- Pseudo-Random Sequence: 1 + x^3 + x^5 + x^7 +x^8<br></font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 386px; left: 261px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 502px; height: 313.75px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.78, 0.78);
+-moz-transform: scale(0.78, 0.78);
+transform: scale(0.78, 0.78)">
+<img src="./Satellite Communications Reverse Engineering_files/LAqE19G.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-44 bg-surf-grad-black " data-x="170666.66666666666" data-y="32870.4" data-scale="3" id="step-45" style="position: absolute; transform: translate(-50%, -50%) translate3d(170667px, 32870.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-44" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 12px; left: 433px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Just XOR!</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 80px; left: 342px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 16px;" class="antialias">
+<font color="#eeeeee">&nbsp; 0xff, 0x48, 0x0e, 0xc0, 0x9a, 0x0d, 0x70, 0xbc,<br>&nbsp; 0x8e, 0x2c, 0x93, 0xad, 0xa7, 0xb7, 0x46, 0xce,<br>&nbsp; 0x5a, 0x97, 0x7d, 0xcc, 0x32, 0xa2, 0xbf, 0x3e,<br>&nbsp; 0x0a, 0x10, 0xf1, 0x88, 0x94, 0xcd, 0xea, 0xb1,<br>&nbsp; 0xfe, 0x90, 0x1d, 0x81, 0x34, 0x1a, 0xe1, 0x79,<br>&nbsp; 0x1c, 0x59, 0x27, 0x5b, 0x4f, 0x6e, 0x8d, 0x9c,<br>&nbsp; 0xb5, 0x2e, 0xfb, 0x98, 0x65, 0x45, 0x7e, 0x7c,<br>&nbsp; 0x14, 0x21, 0xe3, 0x11, 0x29, 0x9b, 0xd5, 0x63,<br>&nbsp; 0xfd, 0x20, 0x3b, 0x02, 0x68, 0x35, 0xc2, 0xf2,<br>&nbsp; 0x38, 0xb2, 0x4e, 0xb6, 0x9e, 0xdd, 0x1b, 0x39,<br>&nbsp; 0x6a, 0x5d, 0xf7, 0x30, 0xca, 0x8a, 0xfc, 0xf8,<br>&nbsp; 0x28, 0x43, 0xc6, 0x22, 0x53, 0x37, 0xaa, 0xc7,<br>&nbsp; 0xfa, 0x40, 0x76, 0x04, 0xd0, 0x6b, 0x85, 0xe4,<br>&nbsp; 0x71, 0x64, 0x9d, 0x6d, 0x3d, 0xba, 0x36, 0x72,<br>&nbsp; 0xd4, 0xbb, 0xee, 0x61, 0x95, 0x15, 0xf9, 0xf0,<br>&nbsp; 0x50, 0x87, 0x8c, 0x44, 0xa6, 0x6f, 0x55, 0x8f,<br>&nbsp; 0xf4, 0x80, 0xec, 0x09, 0xa0, 0xd7, 0x0b, 0xc8,<br>&nbsp; 0xe2, 0xc9, 0x3a, 0xda, 0x7b, 0x74, 0x6c, 0xe5,<br>&nbsp; 0xa9, 0x77, 0xdc, 0xc3, 0x2a, 0x2b, 0xf3, 0xe0,<br>&nbsp; 0xa1, 0x0f, 0x18, 0x89, 0x4c, 0xde, 0xab, 0x1f,<br>&nbsp; 0xe9, 0x01, 0xd8, 0x13, 0x41, 0xae, 0x17, 0x91,<br>&nbsp; 0xc5, 0x92, 0x75, 0xb4, 0xf6, 0xe8, 0xd9, 0xcb,<br>&nbsp; 0x52, 0xef, 0xb9, 0x86, 0x54, 0x57, 0xe7, 0xc1,<br>&nbsp; 0x42, 0x1e, 0x31, 0x12, 0x99, 0xbd, 0x56, 0x3f,<br>&nbsp; 0xd2, 0x03, 0xb0, 0x26, 0x83, 0x5c, 0x2f, 0x23,<br>&nbsp; 0x8b, 0x24, 0xeb, 0x69, 0xed, 0xd1, 0xb3, 0x96,<br>&nbsp; 0xa5, 0xdf, 0x73, 0x0c, 0xa8, 0xaf, 0xcf, 0x82,<br>&nbsp; 0x84, 0x3c, 0x62, 0x25, 0x33, 0x7a, 0xac, 0x7f,<br>&nbsp; 0xa4, 0x07, 0x60, 0x4d, 0x06, 0xb8, 0x5e, 0x47,<br>&nbsp; 0x16, 0x49, 0xd6, 0xd3, 0xdb, 0xa3, 0x67, 0x2d,<br>&nbsp; 0x4b, 0xbe, 0xe6, 0x19, 0x51, 0x5f, 0x9f, 0x05,<br>&nbsp; 0x08, 0x78, 0xc4, 0x4a, 0x66, 0xf5, 0x58</font><br>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-45 bg-surf-grad-black " data-x="174489.6" data-y="32870.4" data-scale="3" id="step-46" style="position: absolute; transform: translate(-50%, -50%) translate3d(174490px, 32870.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-45" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 33px; left: 261px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Reed-Solomon Error Correction</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 107px; left: 26px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- 223 bytes of data for 32 bytes of parity<br>- Can correct any 16 bytes over the 223 bytes<br>- Does not change original bitstream, so if SNR is good no need<br>&nbsp; &nbsp;for correction<br>- GOES has 4 RS Blocks (255 bytes each) interleaved by 1 byte.<br>- Parity is on the end of the packet<br></font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 442px; left: 32px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 961px; height: 198.1px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.92, 0.92);
+-moz-transform: scale(0.92, 0.92);
+transform: scale(0.92, 0.92)">
+<img src="./Satellite Communications Reverse Engineering_files/5YBmBKt.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-46 bg-surf-grad-black " data-x="178312.53333333333" data-y="32870.4" data-scale="3" id="step-47" style="position: absolute; transform: translate(-50%, -50%) translate3d(178313px, 32870.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-46" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 36px; left: 339px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 346px; height: 686.04px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.54, 0.54);
+-moz-transform: scale(0.54, 0.54);
+transform: scale(0.54, 0.54)">
+<img src="./Satellite Communications Reverse Engineering_files/TZn7WQi.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-47 bg-surf-grad-black " data-x="182135.46666666667" data-y="32870.4" data-scale="3" id="step-48" style="position: absolute; transform: translate(-50%, -50%) translate3d(182135px, 32870.4px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-47" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: -188px; left: 149px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 752px; height: 1491.05px;">
+<div class="transformContainer" style="-webkit-transform: scale(1.18, 1.18);
+-moz-transform: scale(1.18, 1.18);
+transform: scale(1.18, 1.18)">
+<img src="./Satellite Communications Reverse Engineering_files/TZn7WQi.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-48 bg-surf-grad-black " data-x="185958.4" data-y="37171.2" data-scale="3" id="step-49" style="position: absolute; transform: translate(-50%, -50%) translate3d(185958px, 37171.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-48" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: -750px; left: 148px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 752px; height: 1491.05px;">
+<div class="transformContainer" style="-webkit-transform: scale(1.18, 1.18);
+-moz-transform: scale(1.18, 1.18);
+transform: scale(1.18, 1.18)">
+<img src="./Satellite Communications Reverse Engineering_files/TZn7WQi.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-49 bg-surf-grad-black " data-x="189781.33333333334" data-y="37171.2" data-scale="3" id="step-50" style="position: absolute; transform: translate(-50%, -50%) translate3d(189781px, 37171.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-49" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 103px; left: 204px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<font color="#eeeeee">--------------------------------------<br>LRIT Admin Message #011<br>Start:14-April-2010<br>End:20-December-2018<br>Distribution:  East and West<br>Subject:  LRIT contact information<br>--------------------------------------<br>The LRIT Systems team, in an effort to be more responsive<br>to the user community, would like for users to have<br>contact information.  In the event that a user notices any<br>long term trends or anomalies in the LRIT data stream, or<br>has suggestions or comments.  We ask that contact be made<br>via email to LRIT@noaa.gov.<br><br>If more immediate matters arise, that the user deems as&nbsp;<br>urgent, we advise the use of the following operational&nbsp;<br>facility phone number: 301-817-3880.<br>--------------------------------------<br><br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-50 bg-surf-grad-black " data-x="193604.26666666666" data-y="37171.2" data-scale="3" id="step-51" style="position: absolute; transform: translate(-50%, -50%) translate3d(193604px, 37171.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-50" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 45px; left: 160px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: 705px; height: 677.68px;">
+<div class="transformContainer" style="-webkit-transform: scale(0.88, 0.88);
+-moz-transform: scale(0.88, 0.88);
+transform: scale(0.88, 0.88)">
+<img src="./Satellite Communications Reverse Engineering_files/JDn4q2J.png">
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-51 bg-surf-grad-black " data-x="197427.2" data-y="37171.2" data-scale="3" id="step-52" style="position: absolute; transform: translate(-50%, -50%) translate3d(197427px, 37171.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-51" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 346px; left: 289px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 64px;" class="antialias">
+<font color="#eeeeee">What's missing?</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-52 bg-surf-grad-black " data-x="201250.13333333333" data-y="37171.2" data-scale="3" id="step-53" style="position: absolute; transform: translate(-50%, -50%) translate3d(201250px, 37171.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-52" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 355px; left: 235px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<font color="#eeeeee">- Rice Decompression algorithm Reverse Engineering<br>- Reverse Engineering of MDL / DCPR channels<br></font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-53 bg-surf-grad-black " data-x="205073.06666666668" data-y="37171.2" data-scale="3" id="step-54" style="position: absolute; transform: translate(-50%, -50%) translate3d(205073px, 37171.2px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-53" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 346px; left: 356px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 64px;" class="antialias">
+<font color="#eeeeee">Questions?</font>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+		
+			<div class="step future" data-state="strut-slide-54 bg-surf-grad-black " data-x="21312.853333333333" data-y="9661.44" data-rotate-y="275.59269945792596" data-rotate-z="244.6529785208615" data-scale="3" id="step-55" style="position: absolute; transform: translate(-50%, -50%) translate3d(21312.9px, 9661.44px, 0px) rotateX(0deg) rotateY(275.593deg) rotateZ(244.653deg) scale(3); transform-style: preserve-3d;">
+			<div class="bg-solid-sky slideContainer strut-slide-54" style="width: 1024px; height: 768px;">
+			<div class="themedArea">
+			
+			</div>
+			
+			<div class="componentContainer " style="top: 40px; left: 471px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">Links</font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 108px; left: 39px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 36px;" class="antialias">
+<font color="#eeeeee">- https://www.youtube.com/energylabsbr<br>- http://www.teske.net.br/lucas/<br>- https://greatscottgadgets.com/hackrf/<br>- http://www.rtl-sdr.com/<br>- http://www.github.com/racerxdl<br>- https://github.com/librtlsdr/librtlsdr<br>- http://airspy.com<br>- http://lna4all.blogspot.com<br></font>
+</div>
+</div>
+</div>
+			
+			<div class="componentContainer " style="top: 715px; left: 735px; -webkit-transform:   ; -moz-transform:   ; transform:   ; width: px; height: px;">
+<div class="transformContainer" style="-webkit-transform: scale(1, 1);
+-moz-transform: scale(1, 1);
+transform: scale(1, 1)">
+<div style="font-size: 24px;" class="antialias">
+<font color="#eeeeee">Email: lucas@teske.net.br</font><br>
+</div>
+</div>
+</div>
+			
+			</div>
+		
+		</div>
+	
+	<div id="overview" class="step future" data-state="strut-slide-overview" data-x="103765.33333333333" data-y="19660.8" data-scale="9" style="position: absolute; transform: translate(-50%, -50%) translate3d(103765px, 19660.8px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(9); transform-style: preserve-3d;"></div>
+	
+</div></div>
+<div class="hint"><p>Tap on the left or right to navigate</p></div>
+</div>
+</div>
+</body></html>
